@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة المهام الدراسية</title>
+    <!-- استدعاء خط كايرو -->
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <!-- استدعاء مكتبات فايربيس (الإصدار 8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
+    
+    <style>
+        :root {
+            --bg-glass: rgba(255, 255, 255, 0.15);
+            --border-glass: rgba(255, 255, 255, 0.25);
+            --text-color: #fff;
+        }
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            font-size: 2.5rem;
+        }
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .subject-btn {
+            background: var(--bg-glass);
+            border: 1px solid var(--border-glass);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 25px 15px;
+            border-radius: 20px;
+            color: white;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            font-family: 'Cairo', sans-serif;
+        }
+        .subject-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+        }
+        .badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff4757;
+            color: white;
+            font-size: 0.85rem;
+            padding: 4px 10px;
+            border-radius: 12px;
+            display: none;
+            animation: pulse 1.5s infinite;
+            box-shadow: 0 2px 10px rgba(255, 71, 87, 0.5);
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: rgba(25, 42, 50, 0.85);
+            border: 1px solid var(--border-glass);
+            padding: 30px;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            cursor: pointer;
+            font-size: 2rem;
+            color: #ff4757;
+            line-height: 1;
+            transition: 0.2s;
+        }
+        .close-btn:hover {
+            color: #ff6b81;
+            transform: scale(1.1);
+        }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 10px;
+            border: none;
+            font-family: 'Cairo', sans-serif;
+            font-size: 1rem;
+            box-sizing: border-box;
+            outline: none;
+        }
+        input {
+            background: rgba(255,255,255,0.9);
+            color: #333;
+        }
+        .add-btn {
+            background: #2ed573;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 1.1rem;
+        }
+        .add-btn:hover {
+            background: #26c267;
+        }
+        .tasks-list {
+            margin-top: 20px;
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .tasks-list::-webkit-scrollbar { width: 6px; }
+        .tasks-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 10px; }
+        
+        .task-item {
+            background: rgba(0,0,0,0.4);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border-right: 4px solid #2ed573;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .task-title {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .task-time {
+            font-size: 0.85rem;
+            color: #a4b0be;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>المهام المدرسية</h1>
+    <div class="grid-container" id="subjectsGrid">
+        <!-- الأزرار تُضاف هنا تلقائياً -->
+    </div>
+
+    <!-- نافذة المادة -->
+    <div id="subjectModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle" style="margin-top:0; color:#fff; text-align:center;"></h2>
+            
+            <input type="text" id="taskDesc" placeholder="اكتب المطلوب هنا..." required>
+            <input type="datetime-local" id="taskTime" required>
+            <button class="add-btn" onclick="addTask()">+ إضافة المهمة</button>
+
+            <div class="tasks-list" id="tasksList"></div>
+        </div>
+    </div>
+
+    <script>
+        // إعدادات Firebase الخاصة بك
+        const firebaseConfig = {
+            apiKey: "AIzaSyCu-ZLIqFgvZSEm8KSn7Seh1X9lnHhGSh0",
+            authDomain: "shop-clothes-224a3.firebaseapp.com",
+            databaseURL: "https://shop-clothes-224a3-default-rtdb.firebaseio.com",
+            projectId: "shop-clothes-224a3",
+            storageBucket: "shop-clothes-224a3.firebasestorage.app",
+            messagingSenderId: "348817058494",
+            appId: "1:348817058494:web:2c29f288537e50ac350cef",
+            measurementId: "G-Q00R0HTBZC"
+        };
+
+        // تهيئة Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+        const messaging = firebase.messaging();
+
+        // طلب تصريح الإشعارات مع مفتاح VAPID الخاص بك
+        messaging.requestPermission().then(() => {
+            return messaging.getToken({ vapidKey: 'BCeGutpPKSg6SXz3MD_wDRJOUGjgBzp4Mt3FdPDdKmrVbeOUIcoLO-Nl40IcGuhdf_OtZSGWh6ybvR9bXW89ToU' });
+        }).then((token) => {
+            console.log("تم تفعيل الإشعارات بنجاح");
+        }).catch((err) => {
+            console.log("الإشعارات غير مفعلة أو تم رفضها");
+        });
+
+        // استقبال الإشعارات أثناء تصفح الموقع
+        messaging.onMessage((payload) => {
+            if (Notification.permission === 'granted') {
+                new Notification(payload.notification.title, {
+                    body: payload.notification.body
+                });
+            }
+        });
+
+        // قائمة المواد
+        const subjects = [
+            "الرياضيات", "الفيزياء", "التربية الإسلامية", "اللغة العربية", 
+            "التاريخ والجغرافيا", "اللغة الفرنسية", "اللغة الإنجليزية", 
+            "هندسة ميكانيكية", "هندسة كهربائية", "هندسة مدنية"
+        ];
+
+        let currentSubject = "";
+
+        // رسم الأزرار في الصفحة الرئيسية
+        function initGrid() {
+            const grid = document.getElementById('subjectsGrid');
+            subjects.forEach(sub => {
+                const btn = document.createElement('button');
+                btn.className = 'subject-btn';
+                btn.innerHTML = `${sub} <span class="badge" id="badge-${sub}">جديد</span>`;
+                btn.onclick = () => openModal(sub);
+                grid.appendChild(btn);
+                
+                // الاستماع اللحظي لقاعدة البيانات لإظهار علامة "جديد"
+                db.collection("tasks").where("subject", "==", sub).onSnapshot(snapshot => {
+                    const badge = document.getElementById(`badge-${sub}`);
+                    if (!snapshot.empty) {
+                        badge.style.display = 'block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                });
+            });
+        }
+
+        // فتح نافذة المادة
+        function openModal(sub) {
+            currentSubject = sub;
+            document.getElementById('modalTitle').innerText = sub;
+            document.getElementById('subjectModal').style.display = 'flex';
+            loadTasks();
+        }
+
+        // إغلاق النافذة
+        function closeModal() {
+            document.getElementById('subjectModal').style.display = 'none';
+        }
+
+        // إضافة مهمة جديدة
+        function addTask() {
+            const desc = document.getElementById('taskDesc').value.trim();
+            const time = document.getElementById('taskTime').value;
+            const addBtn = document.querySelector('.add-btn');
+
+            if (!desc || !time) return;
+
+            addBtn.innerText = "جاري الإضافة...";
+            addBtn.style.opacity = "0.7";
+
+            db.collection("tasks").add({
+                subject: currentSubject,
+                description: desc,
+                deadline: new Date(time).getTime(),
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).then(() => {
+                document.getElementById('taskDesc').value = '';
+                document.getElementById('taskTime').value = '';
+                addBtn.innerText = "+ إضافة المهمة";
+                addBtn.style.opacity = "1";
+            });
+        }
+
+        // جلب المهام الحية للمادة المحددة
+        function loadTasks() {
+            db.collection("tasks")
+              .where("subject", "==", currentSubject)
+              .orderBy("deadline", "asc")
+              .onSnapshot(snapshot => {
+                const list = document.getElementById('tasksList');
+                list.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    list.innerHTML += `
+                        <div class="task-item">
+                            <span class="task-title">${data.description}</span>
+                            <span class="task-time">⏳ الموعد: ${new Date(data.deadline).toLocaleString('ar-DZ')}</span>
+                        </div>
+                    `;
+                });
+            });
+        }
+
+        // نظام الحذف التلقائي (يعمل في الخلفية كل دقيقة)
+        setInterval(() => {
+            const now = Date.now();
+            db.collection("tasks").get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    if (doc.data().deadline <= now) {
+                        db.collection("tasks").doc(doc.id).delete();
+                    }
+                });
+            });
+        }, 60000); 
+
+        // إغلاق النافذة عند الضغط خارجها
+        window.onclick = function(event) {
+            const modal = document.getElementById('subjectModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        // بدء تشغيل التطبيق
+        initGrid();
+    </script>
+</body>
+</html>
